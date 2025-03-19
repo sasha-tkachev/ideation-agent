@@ -221,6 +221,7 @@ async def research_clipboard(data: ClipboardData):
         tree = parse_xmind_to_dict(data.content)
         questions = _find_all_questions(tree)
         
+        await send_progress(f"<code>{data.content}</code>")
         # Send progress updates
         await send_progress(f"Found {len(questions)} questions to research")
         await send_progress("Starting research process...")
@@ -236,7 +237,7 @@ async def research_clipboard(data: ClipboardData):
             perplexity_client,
             openai_client
         )
-        
+        await send_progress(f"<code>{result}</code>")
         await send_progress("Research completed!", type="complete")
         return {"result": result}
     except Exception as e:

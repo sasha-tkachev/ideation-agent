@@ -31,6 +31,17 @@
             padding: 10px;
             background-color: #f5f5f5;
             border-radius: 4px;
+            overflow-x: auto;
+        }
+        code {
+            display: block;
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre;
+            font-family: monospace;
+            margin: 10px 0;
+            overflow-x: auto;
         }
     </style>
 </head>
@@ -44,7 +55,7 @@
             const progressDiv = document.getElementById('progress');
             const messageElement = document.createElement('div');
             messageElement.className = 'progress-item';
-            messageElement.textContent = message;
+            messageElement.innerHTML = message;
             progressDiv.appendChild(messageElement);
             messageElement.scrollIntoView({ behavior: 'smooth' });
         }
@@ -82,7 +93,14 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ content: text })
-                }).catch(error => {
+                })
+                .then(response => response.json())
+                .then(data => {
+                    navigator.clipboard.writeText(data.result)
+                        .then(() => appendProgress('Results copied to clipboard!'))
+                        .catch(err => appendProgress('Failed to copy results: ' + err));
+                })
+                .catch(error => {
                     eventSource.close();
                     throw error;
                 });
