@@ -2,8 +2,12 @@ import os
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict 
-from pathlib import Path
-from datetime import datetime
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+import uvicorn
+
 PERPLEXITY_TO_XMIND ="""
 You will be given a markdown output from perplexity.
 
@@ -150,16 +154,33 @@ def _research_xmind_tree(xmind_tree: str, perplexity_client: OpenAI, openai_clie
     result = _answer_xmind_questions(parse_xmind_to_dict(xmind_tree), perplexity_client, openai_client)
     return "\n".join(dict_to_xmind(result))
 
-def main():
-    INPUT= Path(__file__).parent  / "input" / "input.md"
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-    perplexity_client = OpenAI(api_key=os.getenv("PERPLEXITY_API_KEY"), base_url="https://api.perplexity.ai")
-    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-   
-    DATE = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    OUTPUT= Path(__file__).parent  / "output" / f"{INPUT.stem}.{DATE}.xmind"
-    OUTPUT.write_text(_research_xmind_tree(INPUT.read_text(), perplexity_client, openai_client))
+class ClipboardData(BaseModel):
+    content: str
 
+@app.get("/")
+async def read_root():
+    return FileResponse("static/index.html")
+
+@app.post("/research")
+async def research_clipboard(data: ClipboardData):
+    try:
+        perplexity_client = OpenAI(
+            api_key=os.getenv("PERPLEXITY_API_KEY"), 
+            base_url="https://api.perplexity.ai"
+        )
+        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        result = _research_xmind_tree(
+            data.content,
+            perplexity_client,
+            openai_client
+        )
+        return {"result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    main() 
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Research Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Research Tool</h1>
+    <button onclick="processClipboard()">Research from Clipboard</button>
+    <div id="status"></div>
+
+    <script>
+        async function processClipboard() {
+            const statusDiv = document.getElementById('status');
+            try {
+                statusDiv.textContent = 'Reading clipboard...';
+                
+                const text = await navigator.clipboard.readText();
+                statusDiv.textContent = 'Processing...';
+
+                const response = await fetch('/research', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                await navigator.clipboard.writeText(data.result);
+                statusDiv.textContent = 'Results copied to clipboard!';
+            } catch (error) {
+                statusDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
