@@ -26,6 +26,9 @@
             margin-top: 20px;
             color: #666;
         }
+        #error {
+            color: #ff0000;
+        }
     </style>
 </head>
 <body>
@@ -37,6 +40,7 @@
         async function processClipboard() {
             const statusDiv = document.getElementById('status');
             try {
+                statusDiv.id = 'not-error';  // Reset any existing classes
                 statusDiv.textContent = 'Reading clipboard...';
                 
                 const text = await navigator.clipboard.readText();
@@ -51,13 +55,15 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Network response was not ok');
                 }
 
                 const data = await response.json();
                 await navigator.clipboard.writeText(data.result);
                 statusDiv.textContent = 'Results copied to clipboard!';
             } catch (error) {
+                statusDiv.id = 'error';  // Add error class for red text
                 statusDiv.textContent = 'Error: ' + error.message;
             }
         }

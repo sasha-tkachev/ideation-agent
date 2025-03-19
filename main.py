@@ -167,6 +167,13 @@ async def read_root():
 @app.post("/research")
 async def research_clipboard(data: ClipboardData):
     try:
+        # Validate that the content contains at least one question
+        if not any(line.strip().endswith('?') for line in data.content.split('\n')):
+            raise HTTPException(
+                status_code=400, 
+                detail="The XMind tree must contain at least one question (line ending with '?')"
+            )
+
         perplexity_client = OpenAI(
             api_key=os.getenv("PERPLEXITY_API_KEY"), 
             base_url="https://api.perplexity.ai"
