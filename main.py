@@ -211,7 +211,7 @@ async def progress_generator():
 async def research_clipboard(data: ClipboardData):
     try:
         if not any(line.strip().endswith('?') for line in data.content.split('\n')):
-            await send_progress(f"Got {data.content}")
+            await send_progress(f"Got {repr(data.content)}")
             raise HTTPException(
                 status_code=400,
                 detail="The XMind tree must contain at least one question (line ending with '?')"
