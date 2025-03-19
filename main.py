@@ -102,7 +102,8 @@ def _convert_response_to_xmind_graph(response: str, openai_client: OpenAI) -> st
     
 
 
-def _answer_question(question: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
+async def _answer_question(question: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
+    await send_progress(f"🔍 {question}")
     perplexity_response = perplexity_client.chat.completions.create(
         model="sonar",          
         messages=[{"role": "user", "content": question}]
@@ -113,15 +114,19 @@ def _answer_question(question: str, perplexity_client: OpenAI, openai_client: Op
     result = perplexity_response.choices[0].message.content
     if citations:
         result += "\n\nCitations:\n" + citations
-    return question, _convert_response_to_xmind_graph(result, openai_client)
+    xmind_result = _convert_response_to_xmind_graph(result, openai_client)
+    await send_progress(f"✅ {question}")
+    return question, xmind_result
 
 
 
 
 
-def _answer_questions_in_parallel(questions: set[str], perplexity_client: OpenAI, openai_client: OpenAI) -> dict[str, str]:
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        return list(executor.map(_answer_question, questions, [perplexity_client] * len(questions), [openai_client] * len(questions)))
+async def _answer_questions_in_parallel(questions: set[str], perplexity_client: OpenAI, openai_client: OpenAI) -> dict[str, str]:
+    return await asyncio.gather(*[
+        _answer_question(q, perplexity_client, openai_client) 
+        for q in questions
+    ])
 
 
 def _find_all_questions(xmind_tree: dict, keys_so_far: tuple[str, ...] = tuple()) -> dict[str, tuple[str, ...]]:
@@ -141,9 +146,9 @@ def _remove_first_layer(xmind_tree: dict) -> dict:
         return xmind_tree[list(xmind_tree.keys())[0]]
     return xmind_tree
 
-def _answer_xmind_questions(xmind_tree: dict, perplexity_client: OpenAI, openai_client: OpenAI) -> dict:
+async def _answer_xmind_questions(xmind_tree: dict, perplexity_client: OpenAI, openai_client: OpenAI) -> dict:
     questions = _find_all_questions(xmind_tree)
-    answers = _answer_questions_in_parallel(set(questions.keys()), perplexity_client, openai_client)
+    answers = await _answer_questions_in_parallel(set(questions.keys()), perplexity_client, openai_client)
     for question, answer in answers:
         question_path = questions[question]
         current_node = xmind_tree
@@ -153,8 +158,8 @@ def _answer_xmind_questions(xmind_tree: dict, perplexity_client: OpenAI, openai_
     return xmind_tree
 
 
-def _research_xmind_tree(xmind_tree: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
-    result = _answer_xmind_questions(parse_xmind_to_dict(xmind_tree), perplexity_client, openai_client)
+async def _research_xmind_tree(xmind_tree: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
+    result = await _answer_xmind_questions(parse_xmind_to_dict(xmind_tree), perplexity_client, openai_client)
     return "\n".join(dict_to_xmind(result))
 
 app = FastAPI()
