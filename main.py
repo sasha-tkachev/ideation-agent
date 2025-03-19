@@ -249,5 +249,10 @@ async def research_clipboard(data: ClipboardData):
 async def progress_endpoint():
     return EventSourceResponse(progress_generator())
 
+
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("static/favicon.ico")
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
