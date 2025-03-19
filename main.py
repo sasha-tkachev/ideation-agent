@@ -146,18 +146,19 @@ def _answer_xmind_questions(xmind_tree: dict, perplexity_client: OpenAI, openai_
     return xmind_tree
 
 
+def _research_xmind_tree(xmind_tree: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
+    result = _answer_xmind_questions(parse_xmind_to_dict(xmind_tree), perplexity_client, openai_client)
+    return "\n".join(dict_to_xmind(result))
 
 def main():
     INPUT= Path(__file__).parent  / "input" / "input.md"
 
     perplexity_client = OpenAI(api_key=os.getenv("PERPLEXITY_API_KEY"), base_url="https://api.perplexity.ai")
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    xmind_tree = parse_xmind_to_dict(INPUT.read_text())
-    _answer_xmind_questions(xmind_tree, perplexity_client, openai_client)
-    print(dict_to_xmind(xmind_tree))
+   
     DATE = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     OUTPUT= Path(__file__).parent  / "output" / f"{INPUT.stem}.{DATE}.xmind"
-    OUTPUT.write_text("\n".join(dict_to_xmind(xmind_tree)))
+    OUTPUT.write_text(_research_xmind_tree(INPUT.read_text(), perplexity_client, openai_client))
 
 
 if __name__ == "__main__":
