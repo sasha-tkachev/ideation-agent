@@ -3,3 +3,4 @@ fastapi
 uvicorn
 openai
 python-multipart
+sse_starlette

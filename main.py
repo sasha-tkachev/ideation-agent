@@ -7,6 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
+from sse_starlette.sse import EventSourceResponse
+import asyncio
+import json
 
 PERPLEXITY_TO_XMIND ="""
 You will be given a markdown output from perplexity.
@@ -164,30 +167,68 @@ class ClipboardData(BaseModel):
 async def read_root():
     return FileResponse("static/index.html")
 
+# Add these global variables
+progress_updates = asyncio.Queue()
+active_connections = set()
+
+# Add these new functions
+async def send_progress(message: str, type: str = "progress"):
+    await progress_updates.put({"message": message, "type": type})
+
+async def progress_generator():
+    try:
+        while True:
+            if progress_updates.empty():
+                await asyncio.sleep(0.1)
+                continue
+            
+            data = await progress_updates.get()
+            yield {
+                "event": "message",
+                "data": json.dumps(data)
+            }
+    except asyncio.CancelledError:
+        raise
+
 @app.post("/research")
 async def research_clipboard(data: ClipboardData):
     try:
-        # Validate that the content contains at least one question
         if not any(line.strip().endswith('?') for line in data.content.split('\n')):
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="The XMind tree must contain at least one question (line ending with '?')"
             )
 
+        # Parse the tree and find questions
+        tree = parse_xmind_to_dict(data.content)
+        questions = _find_all_questions(tree)
+        
+        # Send progress updates
+        await send_progress(f"Found {len(questions)} questions to research")
+        await send_progress("Starting research process...")
+
         perplexity_client = OpenAI(
-            api_key=os.getenv("PERPLEXITY_API_KEY"), 
+            api_key=os.getenv("PERPLEXITY_API_KEY"),
             base_url="https://api.perplexity.ai"
         )
         openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
-        result = _research_xmind_tree(
+        result = await _research_xmind_tree(
             data.content,
             perplexity_client,
             openai_client
         )
+        
+        await send_progress("Research completed!", type="complete")
         return {"result": result}
     except Exception as e:
+        await send_progress(f"Error: {str(e)}", type="error")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add this new endpoint
+@app.get('/progress')
+async def progress_endpoint():
+    return EventSourceResponse(progress_generator())
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 

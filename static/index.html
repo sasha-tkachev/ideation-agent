@@ -26,6 +26,16 @@
             margin-top: 20px;
             color: #666;
         }
+        #progress {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .progress-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
         #error {
             color: #ff0000;
         }
@@ -35,16 +45,29 @@
     <h1>Research Tool</h1>
     <button onclick="processClipboard()">Research from Clipboard</button>
     <div id="status"></div>
+    <div id="progress"></div>
 
     <script>
+        function appendProgress(message) {
+            const progressDiv = document.getElementById('progress');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'progress-item';
+            messageElement.textContent = message;
+            progressDiv.appendChild(messageElement);
+            messageElement.scrollIntoView({ behavior: 'smooth' });
+        }
+
         async function processClipboard() {
             const statusDiv = document.getElementById('status');
+            const progressDiv = document.getElementById('progress');
+            progressDiv.innerHTML = ''; // Clear previous progress
+
             try {
-                statusDiv.id = 'not-error';  // Reset any existing classes
+                statusDiv.id = 'status';
                 statusDiv.textContent = 'Reading clipboard...';
                 
                 const text = await navigator.clipboard.readText();
-                statusDiv.textContent = 'Processing...';
+                appendProgress('Input received, validating content...');
 
                 const response = await fetch('/research', {
                     method: 'POST',
@@ -59,12 +82,26 @@
                     throw new Error(errorData.detail || 'Network response was not ok');
                 }
 
-                const data = await response.json();
-                await navigator.clipboard.writeText(data.result);
-                statusDiv.textContent = 'Results copied to clipboard!';
+                const eventSource = new EventSource('/progress');
+                
+                eventSource.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    appendProgress(data.message);
+                    
+                    if (data.type === 'complete') {
+                        eventSource.close();
+                        statusDiv.textContent = 'Research completed!';
+                    }
+                };
+
+                eventSource.onerror = function() {
+                    eventSource.close();
+                    appendProgress('Connection to server lost');
+                };
+
             } catch (error) {
-                statusDiv.id = 'error';  // Add error class for red text
-                statusDiv.textContent = 'Error: ' + error.message;
+                statusDiv.id = 'error';
+                statusDiv.textContent = `Error: ${error.message}`;
             }
         }
     </script>
