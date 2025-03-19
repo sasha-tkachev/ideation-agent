@@ -104,17 +104,29 @@ def _convert_response_to_xmind_graph(response: str, openai_client: OpenAI) -> st
 
 async def _answer_question(question: str, perplexity_client: OpenAI, openai_client: OpenAI) -> str:
     await send_progress(f"🔍 {question}")
-    perplexity_response = perplexity_client.chat.completions.create(
-        model="sonar",          
-        messages=[{"role": "user", "content": question}]
+    
+    # Run OpenAI calls in thread pool
+    loop = asyncio.get_event_loop()
+    perplexity_response = await loop.run_in_executor(
+        None,
+        lambda: perplexity_client.chat.completions.create(
+            model="sonar",          
+            messages=[{"role": "user", "content": question}]
+        )
     )
+    
     citations = ""
     for i, citation in enumerate(perplexity_response.model_extra.get("citations", [])):
         citations += f"[{i+1}] {citation}\n"     
     result = perplexity_response.choices[0].message.content
     if citations:
         result += "\n\nCitations:\n" + citations
-    xmind_result = _convert_response_to_xmind_graph(result, openai_client)
+        
+    xmind_result = await loop.run_in_executor(
+        None,
+        lambda: _convert_response_to_xmind_graph(result, openai_client)
+    )
+    
     await send_progress(f"✅ {question}")
     return question, xmind_result
 
@@ -199,6 +211,7 @@ async def progress_generator():
 async def research_clipboard(data: ClipboardData):
     try:
         if not any(line.strip().endswith('?') for line in data.content.split('\n')):
+            await send_progress(f"Got {data.content}")
             raise HTTPException(
                 status_code=400,
                 detail="The XMind tree must contain at least one question (line ending with '?')"
